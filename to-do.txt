@@ -1,0 +1,23 @@
+Map-Reduce
+    Contar palavras
+Distribuição de carga
+Tolerância a falhas
+
+Ligações TCP entre worker e servidor
+Coordinator: 8765, workers ligam-se aqui
+
+Oq podemos usar:
+    select
+    threads
+    asyncio (tcp server)
+        https://docs.python.org/3/library/asyncio.html
+
+binary sort???
+ordenar pelo numero no tuplo
+
+https://realpython.com/python-sockets/
+
+
+# Receive data -> Work -> Send
+
+    
