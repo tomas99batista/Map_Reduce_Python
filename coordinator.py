@@ -5,12 +5,15 @@ import logging
 import argparse
 import selectors
 import types
+import json
 
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',datefmt='%m-%d %H:%M:%S')
 logger = logging.getLogger('coordinator')
 
 # Lista de sockets
 socks_list = {}
+
+# Guardar mapa c uuid e dps usar no pop
 
 # Selector
 sel = selectors.DefaultSelector()
@@ -19,16 +22,17 @@ def accept(sock, mask):
     conn, addr = sock.accept()  # Should be ready to read
     logger.debug('accepted %s from %s', conn, addr)
     conn.setblocking(False)
-    socks_list[addr[1]] = conn
-    logger.debug('socks_list: %s', socks_list)
     sel.register(conn, selectors.EVENT_READ, read)
 
 def read(conn, mask):
     data = conn.recv(1024)      # Should be ready
+    data = json.loads(data.decode('utf8'))
     if data:
-        logger.debug('echoing %s to %s', repr(data), conn)
-        for port in socks_list.keys():
-            socks_list[port].send(data)
+        logger.debug('Received data: %s', data)
+        if data['task'] == 'register':
+            socks_list[data['id']] = conn
+            logger.debug('Joined Worker: %s\n\tsocks_list: %s', data['id'], socks_list)
+        
     else:
         logger.debug('closing %s', conn)
         sel.unregister(conn)
@@ -52,6 +56,7 @@ def main(args):
             datastore.append(blob)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('0.0.0.0', args.port))
     sock.listen(100)
     sock.setblocking(False)
@@ -62,10 +67,6 @@ def main(args):
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)
-
-    
-
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MapReduce Coordinator')

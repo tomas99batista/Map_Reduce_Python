@@ -1,0 +1,2 @@
+for port in socks_list.keys():
+            socks_list[port].send(data)
