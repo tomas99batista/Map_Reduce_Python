@@ -3,6 +3,7 @@
 import socket
 import logging
 import argparse
+import csv
 import selectors
 import types
 import json
@@ -10,10 +11,11 @@ import json
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',datefmt='%m-%d %H:%M:%S')
 logger = logging.getLogger('coordinator')
 
+#Lista de blobs
+datastore = []
+
 # Lista de sockets
 socks_list = {}
-
-# Guardar mapa c uuid e dps usar no pop
 
 # Selector
 sel = selectors.DefaultSelector()
@@ -40,7 +42,8 @@ def read(conn, mask):
 
 def main(args):
     # Aqui vão ser criadas as blobs
-    datastore = []
+    global datastore
+    # load txt file and divide it into blobs
     with args.file as f:
         while True:
             blob = f.read(args.blob_size)
@@ -52,9 +55,17 @@ def main(args):
                 if not ch:
                     break
                 blob += ch
-            #logger. debug('Blob: %s', blob)
+            logger.debug('Blob: %s', blob)
             datastore.append(blob)
 
+    hist = []
+    # store final histogram into a CSV file
+    with args.out as f:
+        csv_writer = csv.writer(f, delimiter=',',
+        quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        for w,c in hist:
+            csv_writer.writerow([w,c])
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('0.0.0.0', args.port))

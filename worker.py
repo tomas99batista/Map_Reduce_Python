@@ -19,11 +19,15 @@ def readData( conn, mask):
         data = conn.recv(1024)
         if data:
                 logger.debug('Received: %s'. data)
+                if data['task'] == 'register':
+
         else:
                 pass
                 #logger.debug('Received no data: %s', conn)
                 # selector.unregister(conn)
                 # conn.close()
+
+def 
 
 def main( args):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
