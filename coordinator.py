@@ -20,6 +20,9 @@ socks_list = {}
 # Selector
 sel = selectors.DefaultSelector()
 
+# Lista de tarefas a fazer
+tasks = []
+
 def accept(sock, mask):
     conn, addr = sock.accept()  # Should be ready to read
     logger.debug('accepted %s from %s', conn, addr)
@@ -30,15 +33,51 @@ def read(conn, mask):
     data = conn.recv(1024)      # Should be ready
     data = json.loads(data.decode('utf8'))
     if data:
-        logger.debug('Received data: %s', data)
+        #logger.debug('Received data: %s', data)
         if data['task'] == 'register':
             socks_list[data['id']] = conn
             logger.debug('Joined Worker: %s\n\tsocks_list: %s', data['id'], socks_list)
-        
+            map_send(conn, mask)
+        elif data['task'] == 'map_reply':
+            logger.debug('Received map_reply: %s', data['value'])
+            tasks.append(data['value'])
+            reduce_send(conn, mask)
+        elif data['task'] == 'reduce_reply':
+            tasks.append(data['value'])
+            if len(tasks) > 1:
+                reduce_send(conn, mask)
+            else:
+                logger.debug("Reduce done: %s", tasks)       
     else:
         logger.debug('closing %s', conn)
         sel.unregister(conn)
         conn.close()
+
+def reduce_send(conn, mask):
+    if len(tasks) > 2:
+        message = {
+            "task" :  "reduce_request" ,
+            "value" :   [tasks[0], tasks[1]]
+        }
+        tasks.pop(0,1)
+    else:
+        message = {
+            "task" :  "reduce_request" ,
+            "value" :   tasks[0]
+        }    
+        tasks.pop(0)
+    conn.send(json.dumps(message).encode('utf8'))
+    logger.debug('Sent reduce_request: %s', message)
+   
+
+def map_send(conn, mask):
+    for blob in datastore:
+        message = {
+        "task" :  "map_request" ,
+        "blob" : blob
+        }
+        conn.send(json.dumps(message).encode('utf8'))
+        logger.debug('Sent Blob: %s', message)
 
 def main(args):
     # Aqui vão ser criadas as blobs
@@ -55,9 +94,8 @@ def main(args):
                 if not ch:
                     break
                 blob += ch
-            logger.debug('Blob: %s', blob)
+            #logger.debug('Blob: %s', blob)
             datastore.append(blob)
-
     hist = []
     # store final histogram into a CSV file
     with args.out as f:
@@ -81,7 +119,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MapReduce Coordinator')
     parser.add_argument('-p', dest='port', type=int, help='coordinator port', default=8765)
-    parser.add_argument('-f', dest='file', type=argparse.FileType('r', encoding='UTF-8'), help='input file path', default=)
+    parser.add_argument('-f', dest='file', type=argparse.FileType('r', encoding='UTF-8'), help='input file path', default='raposa e as uvas.txt')
     parser.add_argument('-o', dest='out', type=argparse.FileType('w', encoding='UTF-8'), help='output file path', default='output.csv')
     parser.add_argument('-b', dest ='blob_size', type=int, help='blob size', default=1024)
     args = parser.parse_args()
