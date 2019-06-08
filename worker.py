@@ -1,4 +1,3 @@
-# coding: utf-8
 # Tomas Batista | 89296
 import socket
 import logging
@@ -8,6 +7,7 @@ import time
 import re
 import selectors
 import types
+import string
 import json
 
 selector = selectors.DefaultSelector()
@@ -17,8 +17,9 @@ logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(name)-12s %(leveln
 logger = logging.getLogger('worker')
 
 def readData(conn, mask):
-        data = conn.recv(1024)
-        data = json.loads(data.decode('utf8'))        
+        data = conn.recv(4096)      # Should be ready
+        #logger.debug('data: %s', data)
+        data = json.loads(data.decode('utf-8'))
         if data:
                 logger.debug('Received: %s', data)
                 if data['task'] == 'map_request':
@@ -31,6 +32,14 @@ def readData(conn, mask):
                 selector.unregister(conn)
                 conn.close()
 
+def tokenizer(text):
+    tokens = text.lower()
+    tokens = tokens.translate(str.maketrans('', '', string.digits))
+    tokens = tokens.translate(str.maketrans('', '', string.punctuation))
+    tokens = tokens.rstrip()
+    return tokens.split()
+
+# Reduce
 def reduce_work(conn, mask, data):
         send_reduce = {}
         for word, value in data:
@@ -42,11 +51,12 @@ def reduce_work(conn, mask, data):
                 "task" :  "reduce_reply" ,
                 "value" : send_reduce 
         }
-        conn.send(json.dumps(mensagem).encode('utf8'))
-        logger.debug('Finished reduce, sent to the coord: %s', mensagem)        
+        conn.send(json.dumps(mensagem).encode('utf-8'))
+        logger.debug('Reduced and sent: %s', mensagem)        
 
+# Map
 def map_work(conn, mask, blob):
-        list = re.split('[ \n-!:,;.]+', blob.lower())
+        list = tokenizer(blob)
         send_blob = []
         for k in list:
                send_blob.append((k, 1))
@@ -54,10 +64,10 @@ def map_work(conn, mask, blob):
                 "task" :  "map_reply" ,
                 "value" : send_blob
         }
-        conn.send(json.dumps(mensagem).encode('utf8'))
-        logger.debug('Finished mapping, sent to the coord: %s', mensagem)
+        conn.send(json.dumps(mensagem).encode('utf-8'))
+        logger.debug('Mapped and sent: %s', mensagem)
 
-def main( args):
+def main(args):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((args.hostname, args.port))
         sock.setblocking(False)
@@ -65,7 +75,7 @@ def main( args):
                 "task" :  "register" ,
                 "id" : id
         }
-        sock.send(json.dumps(initial_message ).encode('utf8'))
+        sock.send(json.dumps(initial_message).encode('utf-8'))
         logger.debug('Sent: %s ', initial_message )
 
         while True:
