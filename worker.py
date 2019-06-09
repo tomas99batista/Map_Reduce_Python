@@ -19,37 +19,52 @@ logger = logging.getLogger('worker')
 def readData(conn, mask):
         data = conn.recv(4096)      # Should be ready
         #logger.debug('data: %s', data)
-        data = json.loads(data.decode('utf-8'))
         if data:
-                logger.debug('Received: %s', data)
-                if data['task'] == 'map_request':
-                        map_work(conn, mask, data['blob'])
-                elif data['task'] == 'reduce_request':
-                        reduce_work(conn, mask, data['value'])
-
+                handleData(conn, mask, data)
         else:
                 logger.debug('Received no data: %s', conn)
                 selector.unregister(conn)
                 conn.close()
 
-def tokenizer(text):
-    tokens = text.lower()
-    tokens = tokens.translate(str.maketrans('', '', string.digits))
-    tokens = tokens.translate(str.maketrans('', '', string.punctuation))
-    tokens = tokens.rstrip()
-    return tokens.split()
+def handleData(conn, mask, data):
+        while (b'EOM') not in data:
+                data += conn.recv(4096)
+        mensagem = json.loads(data.decode('utf-8'))
+        logger.debug('Received: %s', mensagem)
+        del mensagem['EOM']
+        if mensagem['task'] == 'map_request':
+                map_work(conn, mask, mensagem['blob'])
+        elif mensagem['task'] == 'reduce_request':
+                reduce_work(conn, mask, mensagem['value'])
+        elif mensagem['task'] == 'work_done':
+                logger.info('All the work is done!')
+
+def tokenizer(txt):
+        tokens = txt.lower()
+        tokens = tokens.translate(str.maketrans('', '', string.digits))
+        tokens = tokens.translate(str.maketrans('', '', string.punctuation))
+        tokens = tokens.translate(str.maketrans('', '', '«»'))
+        tokens = tokens.rstrip()
+        return tokens.split()
 
 # Reduce
+# lista de listas
 def reduce_work(conn, mask, data):
-        send_reduce = {}
+        send_reduce = []
         for word, value in data:
+                print(word,value)
                 if word in send_reduce:
-                        send_reduce[word] += 1
+                        print('DATAAAAAAAAAAAAAAAAAAAAAA %s',send_reduce[:])
+                        logger.debug('true')
+                        send_reduce[word[0]] += 1
                 else:
-                        send_reduce[word] = 1
+
+                        send_reduce.append((word, 1))
+
         mensagem = {
                 "task" :  "reduce_reply" ,
-                "value" : send_reduce 
+                "value" : send_reduce,
+                "EOM" : ""
         }
         conn.send(json.dumps(mensagem).encode('utf-8'))
         logger.debug('Reduced and sent: %s', mensagem)        
@@ -63,6 +78,7 @@ def map_work(conn, mask, blob):
         mensagem = {
                 "task" :  "map_reply" ,
                 "value" : send_blob
+                , "EOM" : ""
         }
         conn.send(json.dumps(mensagem).encode('utf-8'))
         logger.debug('Mapped and sent: %s', mensagem)
@@ -74,6 +90,7 @@ def main(args):
         initial_message = {
                 "task" :  "register" ,
                 "id" : id
+                , "EOM" : ""       
         }
         sock.send(json.dumps(initial_message).encode('utf-8'))
         logger.debug('Sent: %s ', initial_message )

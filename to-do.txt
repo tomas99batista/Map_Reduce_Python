@@ -21,6 +21,8 @@ https://realpython.com/python-sockets/
 # Receive data -> Work -> Send
 
 Cuidado com os bytes
-usar 1546{message"}
+usar 1546{message}
 size = recv(4)
 data = recv(size)
+
+Selectors mando primeiro o size
